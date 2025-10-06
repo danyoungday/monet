@@ -1,0 +1,7 @@
+*.png
+**/*.png
+
+*.eps
+**/*.eps
+
+storage/
