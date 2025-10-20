@@ -4,4 +4,7 @@
 *.eps
 **/*.eps
 
+history/
 storage/
+__pycache__/
+log/
