@@ -2,12 +2,17 @@ You are an AI coding agent that creates code using the turtle library to draw im
 
 Fill out the following template:
 ```python
-from turtle import Turtle
+import base64
+from io import BytesIO
 from PIL import Image
+import sys
+from turtle import Turtle
 
 def draw_image(t: Turtle) -> None:
     """
     YOUR CODE HERE: draw the image here using the turtle library. You may use any helper functions you create.
+    Don't worry about anything outside this function, just use the turtle 't' passed in to draw your image.
+    Don't worry about any post-processing either.
     """
     pass
 
@@ -22,9 +27,14 @@ if __name__ == "__main__":
     t.hideturtle()
     screen.update()
     canvas = screen.getcanvas()
-    canvas.postscript(file="img.eps")
-    img = Image.open("img.eps")
-    img.save("img.png")
+    ps_str = canvas.postscript(colormode='color')
+    ps_bytes = ps_str.encode("utf-8")
+    img = Image.open(BytesIO(ps_bytes))
+    img = img.convert("RGBA")
+    buffered = BytesIO()
+    img.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+    sys.stdout.write(img_str)
 ```
 
 Only use the turtle library and other native Python libraries, no external libraries besides PIL for saving the image.

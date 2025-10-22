@@ -1,11 +1,9 @@
-import os
-import random
+from pathlib import Path
 import re
-
-from tqdm import tqdm
+import subprocess
+import tempfile
 
 from agent import Agent
-from evaluation import ImageNoveltyAgent
 
 
 class CodingAgent(Agent):
@@ -25,36 +23,49 @@ class CodingAgent(Agent):
         else:
             return None
 
+    def run_code(self, code: str) -> str:
+        """
+        Runs code and returns the stdout.
+        Write code to a tempfile and execute it with subprocess, returning the generated image as a base64 string.
+        Cases we have to look out for:
+            1. The code runs successfully and outputs a base64 string.
+            2. The code raises an exception.
+            3. The code runs but doesn't output a proper base64 string.
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_code_path = Path(temp_dir) / "temp_code.py"
+            temp_code_path.write_text(code, encoding="utf-8")
+            try:
+                process = subprocess.run(
+                    ["python", str(temp_code_path)],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                output_str = process.stdout
+                output_str = output_str.strip()
 
-def save_code(code: str):
-    n_in_storage = len(os.listdir("storage"))
-    with open(f"storage/draw_{n_in_storage}.py", "w", encoding="utf-8") as f:
-        f.write(code)
+                # TODO: Check if this is a valid base64 string
 
+                return output_str
+            except subprocess.CalledProcessError as e:
+                return None
 
-def sample_storage(n: int) -> list[str]:
-    files = os.listdir("storage")
-    sampled_files = random.sample(files, min(n, len(files)))
-    examples = []
-    for filename in sampled_files:
-        with open(os.path.join("storage", filename), "r", encoding="utf-8") as f:
-            examples.append(f.read().strip())
-    return examples
+    def generate(self, prompt: str, examples: list[str]) -> tuple[str, str]:
+        """
+        Few-shot prompts the agent to generate code based on the provided prompt and examples.
+        """
+        full_prompt = prompt
+        if len(examples) > 0:
+            example_text = "\n\n".join(examples)
+            full_prompt += f"\n\nThe following are some previously generated examples:\n\n{example_text}"
+        response = self.generate_response(full_prompt)
+        code = self.parse_code(response)
 
+        if not code:
+            return response, None
 
-def basic_loop(n: int):
-    coding_agent = CodingAgent(model="gpt-5-mini", temperature=1.0, log=True)
-    novelty_agent = ImageNoveltyAgent(n_shot=3, model="gpt-5-mini", temperature=1.0, log_name="novelty")
+        base64_str = self.run_code(code)
+        return response, base64_str
 
-    for _ in tqdm(range(n)):
-        examples = sample_storage(3)
-        response = coding_agent.generate_with_examples("Draw a cat.", examples)
-        code = coding_agent.parse_code(response)
-
-        novelty_output, score = novelty_agent.evaluate(code)
-        if score > 5:
-            save_code(code)
-
-
-if __name__ == "__main__":
-    basic_loop(10)

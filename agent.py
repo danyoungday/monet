@@ -21,14 +21,11 @@ class Agent:
                 f.write("--- New Session ---\n\n")
                 f.write(f"System Prompt:\n{system_prompt}\n\n")
 
-    def set_history(self, history: list[list[dict]]):
+    def set_history(self, history: list[dict]):
         """
         Set the message history for the agent.
         """
-        self.history = []
-        for message_list in history:
-            for message in message_list:
-                self.history.append(message)
+        self.history = history
 
     def generate_response(self, content: list[dict] | str, save_history: bool = False) -> str:
         """
@@ -66,15 +63,4 @@ class Agent:
             return reply
 
         except Exception as e:
-            print(f"Error calling OpenAI API: {e}")
             return "Error generating response."
-
-    def generate_with_examples(self, prompt: str, examples: list[str]) -> str:
-        """
-        Generate using some few-shot examples.
-        """
-        full_prompt = prompt
-        if len(examples) > 0:
-            example_text = "\n\n".join(examples)
-            full_prompt += f"\n\nThe following are some previously generated examples:\n\n{example_text}"
-        return self.generate_response(full_prompt)
