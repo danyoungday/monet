@@ -1,3 +1,6 @@
+"""
+Main runner script that executes our experiment
+"""
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import random
@@ -9,10 +12,18 @@ from evaluation import ImageNoveltyAgent
 
 
 class History():
+    """
+    Simple history manager for storing a run.
+    NOTE: The generation field is 0 if no examples were used to generate the image. Otherwise, it's the max of the
+    examples used to generate the image + 1.
+    """
     def __init__(self):
         self.entries = []
 
     def add_entry(self, code: str, base64_img: str, novelty_score: int, rationale: str, gen: int):
+        """
+        Simply adds an entry to the history.
+        """
         self.entries.append({
             "code": code,
             "base64_img": base64_img,
@@ -22,18 +33,38 @@ class History():
         })
 
     def save_history(self, filename: str):
+        """
+        Save history as jsonl.
+        """
         with open(filename, "w", encoding="utf-8") as f:
             json.dump(self.entries, f, indent=4)
 
-    def load_history(self, filename: str):
+    def load_history(self, filename: str) -> bool:
+        """
+        Load a jsonl into history.
+        Validates it's in the right format. Returns true if it is, false if we failed.
+        """
         with open(filename, "r", encoding="utf-8") as f:
-            self.entries = json.load(f)
+            entries = json.load(f)
+            for entry in entries:
+                if not all(key in entry for key in ["code", "base64_img", "novelty_score", "rationale", "gen"]):
+                    return False
+            self.entries = entries
+        return True
 
     def sample(self, n: int) -> list[dict]:
+        """
+        Samples n entries from history. If there aren't n, returns all entries.
+        """
         return random.sample(self.entries, min(n, len(self.entries)))
 
 
 def single_iteration(history: History, n_shot: int) -> dict | None:
+    """
+    A single workload iteration: generate an image and evaluate its novelty.
+    Can be used as a unit of work in parallel execution.
+    Returns the result dict if successful or None if generation/execution failed.
+    """
     coding_agent = CodingAgent(model="gpt-5-mini", temperature=1.0, log=True)
     novelty_agent = ImageNoveltyAgent(model="gpt-5-mini", temperature=1.0, log_name="novelty")
 
@@ -59,6 +90,9 @@ def single_iteration(history: History, n_shot: int) -> dict | None:
 
 
 def basic_loop(iters: int, n_shot: int, history_path: str):
+    """
+    A basic, non-parallel loop for running the experiment.
+    """
     history = History()
     for _ in tqdm(range(iters)):
         results = single_iteration(history, n_shot)
@@ -69,7 +103,10 @@ def basic_loop(iters: int, n_shot: int, history_path: str):
 
 
 def parallel_loop(iters: int, n_shot: int, n_workers: int, history_path: str) -> History:
-
+    """
+    Runs the experiment in parallel.
+    Run n_workers iters times prompted with n_shot examples and save to history_path.
+    """
     history = History()
 
     for _ in tqdm(range(iters)):

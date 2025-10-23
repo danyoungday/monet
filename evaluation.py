@@ -7,7 +7,9 @@ from agent import Agent
 
 
 class ImageNoveltyAgent(Agent):
-
+    """
+    Agent that evaluates novelty of generated image against some examples.
+    """
     def __init__(self, model: str, temperature: float, log_name: str = None):
         with open("sysprompts/novelty_evaluator.txt", "r", encoding="utf-8") as f:
             system_prompt = f.read().strip()
@@ -26,6 +28,10 @@ class ImageNoveltyAgent(Agent):
         }
 
     def evaluate(self, base64_img: str, examples: list[str]) -> tuple[str, int]:
+        """
+        Evaluates image against examples, returning (rationale, score).
+        If score parsing fails return a -1 score.
+        """
         fewshot_examples = [self.format_example(ex) for ex in examples]
         self.set_history(fewshot_examples)
 

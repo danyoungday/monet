@@ -1,3 +1,6 @@
+"""
+The drawing agent used to produce images from code.
+"""
 from pathlib import Path
 import re
 import subprocess
@@ -7,6 +10,10 @@ from agent import Agent
 
 
 class CodingAgent(Agent):
+    """
+    Agent responsible for generating code to produce images.
+    In charge of running the arbitrary code generated and returning the resulting image as a base64 string.
+    """
     def __init__(self, model: str, temperature: float, log: bool = False):
         with open("sysprompts/code.txt", "r", encoding="utf-8") as f:
             system_prompt = f.read().strip()
@@ -30,7 +37,7 @@ class CodingAgent(Agent):
         Cases we have to look out for:
             1. The code runs successfully and outputs a base64 string.
             2. The code raises an exception.
-            3. The code runs but doesn't output a proper base64 string.
+            3. TODO: The code runs but doesn't output a proper base64 string.
         """
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_code_path = Path(temp_dir) / "temp_code.py"
@@ -49,7 +56,8 @@ class CodingAgent(Agent):
                 # TODO: Check if this is a valid base64 string
 
                 return output_str
-            except subprocess.CalledProcessError as e:
+
+            except subprocess.CalledProcessError:
                 return None
 
     def generate(self, prompt: str, examples: list[str]) -> tuple[str, str]:
@@ -68,4 +76,3 @@ class CodingAgent(Agent):
 
         base64_str = self.run_code(code)
         return response, base64_str
-

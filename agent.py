@@ -4,7 +4,7 @@ Base Agent class for the other agents to inherit from.
 import openai
 
 
-class Agent:
+class Agent():
     """
     A simple OpenAI agent.
     """
@@ -63,4 +63,4 @@ class Agent:
             return reply
 
         except Exception as e:
-            return "Error generating response."
+            return f"Error generating response: {str(e)}"
