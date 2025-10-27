@@ -1,10 +1,12 @@
 """
 Main runner script that executes our experiment
 """
+from argparse import ArgumentParser
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import random
 
+import numpy as np
 from tqdm import tqdm
 
 from draw import CodingAgent
@@ -20,11 +22,19 @@ class History():
     def __init__(self):
         self.entries = []
 
-    def add_entry(self, code: str, base64_img: str, novelty_score: int, rationale: str, gen: int):
+    def add_entry(self,
+                  parents: list[int],
+                  code: str,
+                  base64_img: str,
+                  novelty_score: int,
+                  rationale: str,
+                  gen: int):
         """
         Simply adds an entry to the history.
         """
         self.entries.append({
+            "entry_id": len(self.entries),
+            "parents": parents,
             "code": code,
             "base64_img": base64_img,
             "novelty_score": novelty_score,
@@ -52,14 +62,23 @@ class History():
             self.entries = entries
         return True
 
-    def sample(self, n: int) -> list[dict]:
+    def sample(self, n: int, prop: bool) -> list[dict]:
         """
         Samples n entries from history. If there aren't n, returns all entries.
+        If prop is true, samples proportionally to novelty score.
         """
+        if prop and len(self.entries) > 0:
+            total_score = sum([entry["novelty_score"] for entry in self.entries])
+            if total_score == 0:
+                weights = [1 / len(self.entries) for _ in self.entries]
+            else:
+                weights = [entry["novelty_score"] / total_score for entry in self.entries]
+            return np.random.choice(self.entries, p=weights, replace=False, size=min(n, len(self.entries))).tolist()
+
         return random.sample(self.entries, min(n, len(self.entries)))
 
 
-def single_iteration(history: History, n_shot: int) -> dict | None:
+def single_iteration(subject: str, history: History, n_shot: int) -> dict | None:
     """
     A single workload iteration: generate an image and evaluate its novelty.
     Can be used as a unit of work in parallel execution.
@@ -69,18 +88,19 @@ def single_iteration(history: History, n_shot: int) -> dict | None:
     novelty_agent = ImageNoveltyAgent(model="gpt-5-mini", temperature=1.0, log_name="novelty")
 
     # Get some examples from the history
-    examples = history.sample(n_shot)
+    examples = history.sample(n_shot, prop=True)
 
     # Generate code and an image from the coding agent
-    code, base64_str = coding_agent.generate("Draw a cat.", [ex["code"] for ex in examples])
+    code, base64_str = coding_agent.generate(subject, [ex["code"] for ex in examples])
     if base64_str is None:
         return None
 
     # Evaluate novelty score of generated image
-    novelty_output, score = novelty_agent.evaluate(base64_str, [ex["base64_img"] for ex in examples])
+    novelty_output, score = novelty_agent.evaluate(subject, base64_str, examples)
 
     # Returned generation is the max of the examples + 1
     return {
+        "parents": [ex["entry_id"] for ex in examples],
         "code": code,
         "base64_img": base64_str,
         "novelty_score": score,
@@ -89,20 +109,20 @@ def single_iteration(history: History, n_shot: int) -> dict | None:
     }
 
 
-def basic_loop(iters: int, n_shot: int, history_path: str):
+def basic_loop(subject: str, iters: int, n_shot: int, history_path: str):
     """
     A basic, non-parallel loop for running the experiment.
     """
     history = History()
     for _ in tqdm(range(iters)):
-        results = single_iteration(history, n_shot)
+        results = single_iteration(subject, history, n_shot)
         if results is not None and results["novelty_score"] > 5:
             history.add_entry(**results)
         history.save_history(history_path)
     return history
 
 
-def parallel_loop(iters: int, n_shot: int, n_workers: int, history_path: str) -> History:
+def parallel_loop(subject: str, iters: int, n_shot: int, n_workers: int, history_path: str) -> History:
     """
     Runs the experiment in parallel.
     Run n_workers iters times prompted with n_shot examples and save to history_path.
@@ -111,18 +131,34 @@ def parallel_loop(iters: int, n_shot: int, n_workers: int, history_path: str) ->
 
     for _ in tqdm(range(iters)):
         with ThreadPoolExecutor(max_workers=n_workers) as ex:
-            futures = [ex.submit(single_iteration, history, n_shot) for _ in range(n_workers)]
+            # Set up jobs and hold results in to_add
+            futures = [ex.submit(single_iteration, subject, history, n_shot) for _ in range(n_workers)]
+            to_add = []
             for fut in as_completed(futures):
-                to_add = []
                 result = fut.result()
                 if result is not None and (result["novelty_score"] > 5 or len(history.entries) < n_shot):
                     to_add.append(result)
 
-                for entry in to_add:
-                    history.add_entry(**entry)
+            # Tag entries with an id and add them to history
+            for entry in to_add:
+                history.add_entry(**entry)
 
+            # Flush history to disk
             history.save_history(history_path)
 
 
 if __name__ == "__main__":
-    parallel_loop(iters=10, n_shot=3, n_workers=10, history_path="parallel_history.jsonl")
+    parser = ArgumentParser()
+    parser.add_argument("--save_path", type=str, required=True, help="Path to save history to")
+    args = parser.parse_args()
+
+    random.seed(42)
+    np.random.seed(42)
+
+    parallel_loop(
+        "Cat",
+        iters=10,
+        n_shot=5,
+        n_workers=10,
+        history_path=args.save_path
+    )

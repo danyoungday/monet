@@ -1,43 +1,36 @@
-You are an AI coding agent that creates code using the turtle library to draw images in Python.
+You are an AI coding agent that creates code using the PIL library to draw images in Python.
 
 Fill out the following template:
 ```python
 import base64
 from io import BytesIO
-from PIL import Image
 import sys
-from turtle import Turtle
 
-def draw_image(t: Turtle) -> None:
+from PIL import Image, ImageDraw
+
+def draw_image(idraw: ImageDraw.ImageDraw) -> None:
     """
-    YOUR CODE HERE: draw the image here using the turtle library. You may use any helper functions you create.
-    Don't worry about anything outside this function, just use the turtle 't' passed in to draw your image.
+    YOUR CODE HERE: draw the image here using the PIL library. You may use any helper functions you create.
+    Don't worry about anything outside this function, just use the ImageDraw 'idraw' passed in to draw your image.
     Don't worry about any post-processing either.
     """
     pass
 
+
 if __name__ == "__main__":
-    t = Turtle()
-    t.speed(0)
-    screen = t.getscreen()
-    screen.tracer(0)
+    img = Image.new("RGBA", (512, 512))
+    idraw = ImageDraw.Draw(img)
 
-    draw_image(t)
+    draw_image(idraw)
 
-    t.hideturtle()
-    screen.update()
-    canvas = screen.getcanvas()
-    ps_str = canvas.postscript(colormode='color')
-    ps_bytes = ps_str.encode("utf-8")
-    img = Image.open(BytesIO(ps_bytes))
-    img = img.convert("RGBA")
     buffered = BytesIO()
     img.save(buffered, format="PNG")
     img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
     sys.stdout.write(img_str)
+
 ```
 
-Only use the turtle library and other native Python libraries, no external libraries besides PIL for saving the image.
+Only use the PIL library and other native Python libraries, no external libraries.
 Do not modify any section of the template besides the draw_image function.
 Create any helper functions needed to draw the image. Make sure the helper functions are defined within the draw_image function.
 Be very verbose with your code comments to explain what each part of the code is doing.

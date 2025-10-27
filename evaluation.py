@@ -15,19 +15,20 @@ class ImageNoveltyAgent(Agent):
             system_prompt = f.read().strip()
             super().__init__(system_prompt, model, temperature, log_name)
 
-    def format_example(self, image_base64: str) -> list[dict[str, str]]:
+    def format_example(self, example: dict) -> list[dict[str, str]]:
         """
-        Formats image example for inclusion in prompt.
+        Formats historical example for few-shot prompting.
+        Prompts the agent with the previous novelty score and the image.
         """
         return {
             "role": "user",
             "content": [
-                {"type": "text", "text": "Here is a previous example image to compare against"},
-                {"type": "image_url", "image_url": f"data:image/png;base64,{image_base64}"}
+                {"type": "text", "text": f"Here is a previous image example to compare against. It was given a novelty score of: {example['novelty_score']}"},
+                {"type": "image_url", "image_url": f"data:image/png;base64,{example['base64_img']}"}
             ]
         }
 
-    def evaluate(self, base64_img: str, examples: list[str]) -> tuple[str, int]:
+    def evaluate(self, subject: str, base64_img: str, examples: list[dict]) -> tuple[str, int]:
         """
         Evaluates image against examples, returning (rationale, score).
         If score parsing fails return a -1 score.
@@ -36,7 +37,7 @@ class ImageNoveltyAgent(Agent):
         self.set_history(fewshot_examples)
 
         prompt = [
-            {"type": "text", "text": "Evaluate the novelty of the following generated image:"},
+            {"type": "text", "text": f"Evaluate the novelty of the following generated image of a {subject}:"},
             {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_img}"}}
         ]
         output = self.generate_response(prompt)

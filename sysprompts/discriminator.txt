@@ -1,0 +1,2 @@
+You are classifying what an image is based on multiple choice options.
+Respond with the single letter of the correct answer like so: {A}.

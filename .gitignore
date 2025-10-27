@@ -10,3 +10,4 @@ history/
 storage/
 __pycache__/
 log/
+results/
