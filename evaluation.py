@@ -11,7 +11,7 @@ class ImageNoveltyAgent(Agent):
     Agent that evaluates novelty of generated image against some examples.
     """
     def __init__(self, model: str, temperature: float, log_name: str = None):
-        with open("sysprompts/novelty_evaluator.txt", "r", encoding="utf-8") as f:
+        with open("sysprompts/novelty_winrate.txt", "r", encoding="utf-8") as f:
             system_prompt = f.read().strip()
             super().__init__(system_prompt, model, temperature, log_name)
 
@@ -23,7 +23,7 @@ class ImageNoveltyAgent(Agent):
         return {
             "role": "user",
             "content": [
-                {"type": "text", "text": f"Here is a previous image example to compare against. It was given a novelty score of: {example['novelty_score']}"},
+                {"type": "text", "text": f"Here is a previous image example to compare against:"},
                 {"type": "image_url", "image_url": f"data:image/png;base64,{example['base64_img']}"}
             ]
         }

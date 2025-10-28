@@ -88,7 +88,7 @@ def single_iteration(subject: str, history: History, n_shot: int) -> dict | None
     novelty_agent = ImageNoveltyAgent(model="gpt-5-mini", temperature=1.0, log_name="novelty")
 
     # Get some examples from the history
-    examples = history.sample(n_shot, prop=True)
+    examples = history.sample(n_shot, prop=False)
 
     # Generate code and an image from the coding agent
     code, base64_str = coding_agent.generate(subject, [ex["code"] for ex in examples])
@@ -136,7 +136,7 @@ def parallel_loop(subject: str, iters: int, n_shot: int, n_workers: int, history
             to_add = []
             for fut in as_completed(futures):
                 result = fut.result()
-                if result is not None and (result["novelty_score"] > 5 or len(history.entries) < n_shot):
+                if result is not None and (result["novelty_score"] > 0 or len(history.entries) < n_shot):
                     to_add.append(result)
 
             # Tag entries with an id and add them to history
