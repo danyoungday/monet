@@ -16,11 +16,11 @@ class CodingAgent(Agent):
     Agent responsible for generating code to produce images.
     In charge of running the arbitrary code generated and returning the resulting image as a base64 string.
     """
-    def __init__(self, model: str, temperature: float, log: bool = False):
+    def __init__(self, model: str, temperature: float):
         with open("sysprompts/pillow.txt", "r", encoding="utf-8") as f:
             system_prompt = f.read()
 
-        super().__init__(system_prompt, model, temperature, log_name="code" if log else None)
+        super().__init__(system_prompt, model, temperature)
 
     def parse_code(self, response: str) -> str:
         """

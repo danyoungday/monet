@@ -11,3 +11,5 @@ storage/
 __pycache__/
 log/
 results/
+
+figures/

@@ -8,18 +8,12 @@ class Agent():
     """
     A simple OpenAI agent.
     """
-    def __init__(self, system_prompt: str, model: str, temperature: float, log_name: str = None):
+    def __init__(self, system_prompt: str, model: str, temperature: float):
         self.system_prompt = system_prompt
         self.model = model
         self.temperature = temperature
 
         self.history = []
-
-        self.log_name = log_name
-        if log_name:
-            with open(f"log/{log_name}.txt", "a", encoding="utf-8") as f:
-                f.write("--- New Session ---\n\n")
-                f.write(f"System Prompt:\n{system_prompt}\n\n")
 
     def set_history(self, history: list[dict]):
         """
@@ -51,11 +45,6 @@ class Agent():
                 messages=messages
             )
             reply = response.choices[0].message.content
-
-            # Logging
-            if self.log_name:
-                with open(f"log/{self.log_name}.txt", "a", encoding="utf-8") as f:
-                    f.write(f"User:\n{content[0]['text']}\n\nResponse:\n{reply}\n\n")
 
             if save_history:
                 self.history.append({"role": "user", "content": content})

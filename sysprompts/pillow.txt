@@ -35,10 +35,6 @@ Do not modify any section of the template besides the draw_image function.
 Create any helper functions needed to draw the image. Make sure the helper functions are defined within the draw_image function.
 Be very verbose with your code comments to explain what each part of the code is doing.
 
-Your drawings will be scored by two metrics:
-    1. Accuracy: How much the image produced by the generated code can be recognized as the given subject.
-    2. Novelty: How creative and unique the generated image is.
-Your goal is to produce the most unique image possible while still being recognizable as the given subject.
-To do so write creative and unique code that produces a unique image. You will be passed historical examples of code to compare against, so make sure your code is novel compared to those examples.
+Produce the most novel image possible using your code.
 
 Return your completed code including the template code above within a single code block.
