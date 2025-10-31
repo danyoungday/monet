@@ -6,7 +6,7 @@ from draw.diffusion import Diffuser, LMX
 from novelty.embedding import EmbeddingNoveltyEvaluator
 from utils import History, encode_image
 
-def setup_initial_pop(history: History, diffuser: Diffuser, evaluator: EmbeddingNoveltyEvaluator):
+def setup_initial_pop(n: int, history: History, diffuser: Diffuser, evaluator: EmbeddingNoveltyEvaluator):
     history = History()
 
     # Load initial examples from dataset
@@ -14,7 +14,7 @@ def setup_initial_pop(history: History, diffuser: Diffuser, evaluator: Embedding
     dataset = load_dataset("Gustavosta/Stable-Diffusion-Prompts", split="train")
     filtered = dataset.filter(lambda x: (" cat." in x["Prompt"].lower()) or (" cat " in x["Prompt"].lower()))
     initial_examples = filtered.to_pandas()
-    initial_examples = initial_examples.sample(n=10, random_state=42)
+    initial_examples = initial_examples.sample(n=n, random_state=42)
 
     # Generate images for history
     print("Generating images...")
@@ -40,13 +40,25 @@ def setup_initial_pop(history: History, diffuser: Diffuser, evaluator: Embedding
             gen=0
         )
 
-    history.save_history("test.jsonl")
-
 
 def lmx_job(lmx: LMX, examples: list[str]) -> str:
     return lmx.generate_prompt(examples)
 
+
+def batch_lmx(lmx: LMX, all_examples: list[list[str]]) -> list[str]:
+    prompts = []
+    with ThreadPoolExecutor(max_workers=10) as ex:
+        # Set up jobs and hold results in to_add
+        futures = [ex.submit(lmx_job, lmx, examples) for examples in all_examples]
+        for fut in as_completed(futures):
+            prompt = fut.result()
+            prompts.append(prompt)
+    return prompts
+
+
 def run_diffusion_experiment():
+
+    threshold = 0.0
 
     history = History()
     lmx = LMX()
@@ -54,17 +66,39 @@ def run_diffusion_experiment():
     evaluator = EmbeddingNoveltyEvaluator(k=30, device="mps")
 
     print("Setting up initial population...")
-    setup_initial_pop(history, diffuser, evaluator)
+    setup_initial_pop(10, history, diffuser, evaluator)
 
-    # prompts = []
-    # with ThreadPoolExecutor(max_workers=10) as ex:
-    #     # Set up jobs and hold results in to_add
-    #     submit = [lmx_job, lmx, ]
-    #     futures = [ex.submit(*submit) for _ in range(10)]
-    #     to_add = []
-    #     for fut in as_completed(futures):
-    #         prompt = fut.result()
-    #         prompts.append(prompt)
+    all_examples = [history.sample(5, prop=False) for _ in range(10)]
+    all_example_codes = [[ex["code"] for ex in examples] for examples in all_examples]
+
+    print("Generating prompts with LMX...")
+    prompts = batch_lmx(lmx, all_example_codes)
+    print(f"LMX produced {len(prompts)} prompts.")
+
+    print("Generating images with Diffuser...")
+    images = diffuser.generate_images(prompts)
+
+    print("Evaluating novelty with Novelty Evaluator...")
+    base64_imgs = [encode_image(img) for img in images]
+    novelties, embeddings = evaluator.evaluate(base64_imgs)
+
+    to_add_idxs = [i for i, score in enumerate(novelties) if score > threshold]
+
+    embeddings_to_add = embeddings[to_add_idxs]
+    evaluator.add_embeddings(embeddings_to_add)
+
+    for idx in to_add_idxs:
+        examples = all_examples[idx]
+        history.add_entry(
+            parents=[ex["entry_id"] for ex in examples],
+            code=prompts[idx],
+            base64_img=base64_imgs[idx],
+            novelty_score=novelties[idx],
+            rationale="",
+            gen=max([ex["gen"] for ex in examples], default=-1) + 1
+        )
+
+    history.save_history("results/diff-exp.jsonl")
 
 
 if __name__ == "__main__":

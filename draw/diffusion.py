@@ -2,14 +2,26 @@ import re
 
 import diffusers
 from PIL import Image
+from torch.utils.data import Dataset, DataLoader
 
 from agent import Agent
 
 
 class Diffuser():
-    def __init__(self, device: str = "cpu"):
-        # Set up the diffusion model
+
+    class DiffuserDataset(Dataset):
+        def __init__(self, prompts: list[str]):
+            self.prompts = prompts
+        def __len__(self):
+            return len(self.prompts)
+        def __getitem__(self, idx):
+            return self.prompts[idx]
+
+    def __init__(self, device: str = "cpu", batch_size: int = 4):
         self.device = device
+        self.batch_size = batch_size
+
+        # Set up the diffusion model
         self.pipe = diffusers.DiffusionPipeline.from_pretrained("stable-diffusion-v1-5/stable-diffusion-v1-5")
         self.pipe = self.pipe.to(self.device)
         if self.device == "mps":
@@ -17,7 +29,11 @@ class Diffuser():
             self.pipe.enable_attention_slicing()
 
     def generate_images(self, prompts: list[str]) -> list[Image.Image]:
-        images = self.pipe(prompts).images
+        loader = DataLoader(self.DiffuserDataset(prompts), batch_size=self.batch_size)
+        images = []
+        for batch in loader:
+            batch_images = self.pipe(batch).images
+            images.extend(batch_images)
         return images
 
 
