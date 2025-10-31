@@ -9,14 +9,18 @@ import sys
 import tempfile
 
 from agent import Agent
+from draw.artist import Artist
 
 
-class CodingAgent(Agent):
+class CodingAgent(Agent, Artist):
     """
     Agent responsible for generating code to produce images.
     In charge of running the arbitrary code generated and returning the resulting image as a base64 string.
     """
-    def __init__(self, model: str, temperature: float):
+    def __init__(self, subject: str, model: str, temperature: float):
+
+        self.subject = subject
+
         with open("sysprompts/pillow.txt", "r", encoding="utf-8") as f:
             system_prompt = f.read()
 
@@ -69,11 +73,11 @@ class CodingAgent(Agent):
             except subprocess.CalledProcessError:
                 return None
 
-    def generate(self, subject: str, examples: list[str]) -> tuple[str, str]:
+    def generate(self, examples: list[str]) -> tuple[str, str]:
         """
         Few-shot prompts the agent to generate code based on the provided prompt and examples.
         """
-        full_prompt = f"Draw a {subject}"
+        full_prompt = f"Draw a {self.subject}"
         if len(examples) > 0:
             example_text = "\n\n".join(examples)
             full_prompt += f"\n\nThe following are some previously generated examples:\n\n{example_text}"

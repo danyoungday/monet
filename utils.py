@@ -75,6 +75,15 @@ class History():
         return random.sample(self.entries, min(n, len(self.entries)))
 
 
+def encode_image(img: Image) -> str:
+    """
+    Encodes a PIL Image to a base64 string.
+    """
+    buffered = BytesIO()
+    img.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+
 def decode_image(base64_str: str) -> Image:
     """
     Decodes a base64 string to a PIL Image.

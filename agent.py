@@ -27,7 +27,9 @@ class Agent():
         """
         try:
             # Construct system prompt and message history
-            messages = [{"role": "system", "content": self.system_prompt}]
+            messages = []
+            if self.system_prompt:
+                messages.append({"role": "system", "content": self.system_prompt})
             for message in self.history:
                 messages.append(message)
 
