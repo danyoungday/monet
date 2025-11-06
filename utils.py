@@ -2,11 +2,12 @@
 Utilities used throughout the experiment.
 """
 import base64
+from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 import random
 
-import json
 import numpy as np
+import pandas as pd
 from PIL import Image
 
 
@@ -19,45 +20,50 @@ class History():
     def __init__(self):
         self.entries = []
 
-    def add_entry(self,
-                  parents: list[int],
-                  code: str,
-                  base64_img: str,
-                  novelty_score: int,
-                  rationale: str,
-                  gen: int):
+    def add_entry(
+            self,
+            entry_id: int,
+            gen: int,
+            parents: list[int],
+            genotype: str,
+            phenotype: str,
+            novelty_score: float):
         """
-        Simply adds an entry to the history.
+        Adds an entry to the history.
         """
         self.entries.append({
-            "entry_id": len(self.entries),
+            "entry_id": entry_id,
+            "gen": gen,
             "parents": parents,
-            "code": code,
-            "base64_img": base64_img,
-            "novelty_score": novelty_score,
-            "rationale": rationale,
-            "gen": gen
+            "genotype": genotype,
+            "phenotype": phenotype,
+            "novelty_score": novelty_score
         })
 
     def save_history(self, filename: str):
         """
-        Save history as jsonl.
+        Save history as pandas dataframe.
         """
-        with open(filename, "w", encoding="utf-8") as f:
-            json.dump(self.entries, f, indent=4)
+        history_df = pd.DataFrame(self.entries)
+        history_df.to_csv(filename, index=False)
 
-    def load_history(self, filename: str) -> bool:
+    def load_history(self, filename: str):
         """
-        Load a jsonl into history.
-        Validates it's in the right format. Returns true if it is, false if we failed.
+        Load a csv into History.
+        TODO: We need to be able to parse the parents
         """
-        with open(filename, "r", encoding="utf-8") as f:
-            entries = json.load(f)
-            for entry in entries:
-                if not all(key in entry for key in ["code", "base64_img", "novelty_score", "rationale", "gen"]):
-                    return False
-            self.entries = entries
-        return True
+        history_df = pd.read_csv(filename)
+        self.entries = []
+        for _, row in history_df.iterrows():
+            entry = {
+                "entry_id": row["entry_id"],
+                "gen": row["gen"],
+                "parents": row["parents"],
+                "genotype": row["genotype"],
+                "phenotype": row["phenotype"],
+                "novelty_score": row["novelty_score"]
+            }
+            self.entries.append(entry)
 
     def sample(self, n: int, prop: bool) -> list[dict]:
         """
@@ -74,6 +80,17 @@ class History():
 
         return random.sample(self.entries, min(n, len(self.entries)))
 
+def run_fn_parallel(fn, all_kwargs: list, max_workers: int):
+    """
+    Runs a function in parallel over the given inputs.
+    """
+    outputs = []
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = [ex.submit(fn, **kwargs) for kwargs in all_kwargs]
+        for fut in futures:
+            output = fut.result()
+            outputs.append(output)
+    return outputs
 
 def encode_image(img: Image) -> str:
     """

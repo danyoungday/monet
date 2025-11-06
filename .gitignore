@@ -6,6 +6,8 @@
 
 *.jsonl
 
+*.csv
+
 history/
 storage/
 __pycache__/

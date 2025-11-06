@@ -10,8 +10,6 @@ from PIL import Image
 import torch
 from torch.utils.data import Dataset, DataLoader
 
-from utils import decode_image
-
 
 class EmbeddingNoveltyEvaluator:
     """
@@ -66,9 +64,8 @@ class EmbeddingNoveltyEvaluator:
         image_features = torch.cat(all_features, dim=0)
         return image_features
 
-    def evaluate(self, base64_imgs: list[str]) -> tuple[np.ndarray, torch.Tensor]:
+    def evaluate(self, imgs: list[Image.Image]) -> tuple[np.ndarray, torch.Tensor]:
 
-        imgs = [decode_image(b64) for b64 in base64_imgs]
         embeddings = self.encode_images(imgs)
 
         if self.index.ntotal == 0:

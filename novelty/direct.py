@@ -4,13 +4,17 @@ Agent responsible for scoring the novelty of generated images.
 import re
 
 from agent import Agent
+from utils import run_fn_parallel
 
 
 class ImageNoveltyAgent(Agent):
     """
     Agent that evaluates novelty of generated image against some examples.
     """
-    def __init__(self, model: str, temperature: float):
+    def __init__(self, subject: str, model: str, temperature: float, max_workers: int):
+        self.subject = subject
+        self.max_workers = max_workers
+
         with open("sysprompts/novelty_winrate.txt", "r", encoding="utf-8") as f:
             system_prompt = f.read().strip()
             super().__init__(system_prompt, model, temperature)
@@ -28,16 +32,19 @@ class ImageNoveltyAgent(Agent):
             ]
         }
 
-    def evaluate(self, subject: str, base64_img: str, examples: list[dict]) -> tuple[str, int]:
+    def evaluate(self, base64_img: str, examples: list[dict]) -> int:
         """
         Evaluates image against examples, returning (rationale, score).
         If score parsing fails return a -1 score.
         """
+        if base64_img is None:
+            return None
+
         fewshot_examples = [self.format_example(ex) for ex in examples]
         self.set_history(fewshot_examples)
 
         prompt = [
-            {"type": "text", "text": f"Evaluate the novelty of the following generated image of a {subject}:"},
+            {"type": "text", "text": f"Evaluate the novelty of the following generated image of a {self.subject}:"},
             {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_img}"}}
         ]
         output = self.generate_response(prompt)
@@ -45,6 +52,10 @@ class ImageNoveltyAgent(Agent):
         score = re.search(r"\{(\d+)\}", output)
         # If we can parse a score, add to examples and return the score
         if score:
-            return output, int(score.group(1))
-        else:
-            return output, -1  # Indicate that parsing failed
+            return int(score.group(1))
+
+        return None  # Indicate that parsing failed
+
+    def evaluate_parallel(self, base64_imgs: list[str], all_examples: list[list[dict]]) -> list[tuple[str, int]]:
+        inputs = [{"base64_img": base64_imgs[i], "examples": all_examples[i]} for i in range(len(base64_imgs))]
+        return run_fn_parallel(self.evaluate, inputs, self.max_workers)

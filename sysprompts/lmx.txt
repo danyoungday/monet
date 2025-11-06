@@ -1,2 +1,2 @@
-Below are a list of examples of text-to-image prompts to generate a <SUBJECT>.
-Create a novel prompt and format it within: <PROMPT></PROMPT>
+Below are a list of examples of text-to-image prompts.
+Create a new prompt from these and format it within: <PROMPT></PROMPT>

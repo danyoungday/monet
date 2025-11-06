@@ -2,127 +2,81 @@
 Main runner script that executes our experiment
 """
 from argparse import ArgumentParser
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import random
 
-from datasets import load_dataset
 import numpy as np
-from tqdm import tqdm
+import pandas as pd
 
-# from draw.code import CodingAgent
-from draw.diffusion import Diffuser
-# from novelty.direct import ImageNoveltyAgent
-from novelty.embedding import EmbeddingNoveltyEvaluator
-from utils import History
+from draw.code import Coder
+from novelty.direct import ImageNoveltyAgent
 
 
-def single_iteration(subject: str,
-                     history: History,
-                     drawing_agent: Diffuser,
-                     novelty_scorer: EmbeddingNoveltyEvaluator,
-                     n_shot: int) -> dict | None:
+def run_iteration(
+        n_shot: int,
+        n_children: int,
+        threshold: float,
+        history_df: pd.DataFrame,
+        coder: Coder,
+        evaluator: ImageNoveltyAgent) -> pd.DataFrame:
     """
-    A single workload iteration: generate an image and evaluate its novelty.
-    Can be used as a unit of work in parallel execution.
-    Returns the result dict if successful or None if generation/execution failed.
+    Run a single iteration of the novelty search loop.
+    Samples n_shot parents from history_df n_children times to produce n_children new children.
+    Processes children into images
+    Evaluates novelty based on the parents.
+    Returns a DataFrame of the entries that passed.
     """
-    # Get some examples from the history
-    examples = history.sample(n_shot, prop=False)
+    # Get some parent examples
+    all_examples = [history_df.sample(min(n_shot, len(history_df)), random_state=42) for _ in range(n_children)]
 
-    # Generate code and an image from the coding agent
-    code, base64_str = drawing_agent.generate([ex["code"] for ex in examples])
-    if base64_str is None:
-        return None
+    # Generate new code with coder
+    print("Writing code...")
+    new_codes = coder.reproduce_parallel([list(examples["genotype"]) for examples in all_examples])
 
-    # Evaluate novelty score of generated image
-    score, embedding = novelty_scorer.evaluate(base64_str)
+    # Generate images from code
+    print("Generating images...")
+    base64_imgs = coder.express_parallel(new_codes)
 
-    # Returned generation is the max of the examples + 1
-    return {
-        "parents": [ex["entry_id"] for ex in examples],
-        "code": code,
-        "base64_img": base64_str,
-        "novelty_score": score,
-        "embedding": embedding,
-        "rationale": "",
-        "gen": max([ex["gen"] for ex in examples], default=-1) + 1
-    }
+    # Evaluate novelty of generated images
+    print("Evaluating novelty...")
+    novelty_examples = [examples.to_dict(orient="records") for examples in all_examples]
+    novelties = evaluator.evaluate_parallel(base64_imgs, novelty_examples)
 
-def parallel_openai_call()
+    print("Logging results...")
+    # Add new entries to history
+    to_add = []
+    for i in range(n_children):
+        if novelties[i] is not None and novelties[i] > threshold:
+            examples = all_examples[i]
+            new_entry = {
+                "entry_id": len(history_df) + i,
+                "gen": max(examples["gen"]) + 1 if len(examples) > 0 else 0,
+                "parents": sorted(list(examples["entry_id"])),
+                "genotype": new_codes[i],
+                "phenotype": base64_imgs[i],
+                "novelty_score": novelties[i]
+            }
+            to_add.append(new_entry)
 
-def parallel_loop(subject: str, iters: int, n_shot: int, n_workers: int, history_path: str) -> History:
-    """
-    Runs the experiment in parallel.
-    Run n_workers iters times prompted with n_shot examples and save to history_path.
-    """
-    # coding_agent = CodingAgent(model="gpt-5-mini", temperature=1.0)
-    drawing_agent = Diffuser(device="mps")
-    novelty_scorer = EmbeddingNoveltyEvaluator(k=30, device="mps")
-    history = setup_history()
-
-    threshold = 0.0
-
-    for _ in tqdm(range(iters)):
-        with ThreadPoolExecutor(max_workers=n_workers) as ex:
-            # Set up jobs and hold results in to_add
-            submit = [single_iteration, subject, history, drawing_agent, novelty_scorer, n_shot]
-            futures = [ex.submit(*submit) for _ in range(n_workers)]
-            to_add = []
-            for fut in as_completed(futures):
-                result = fut.result()
-                if result is not None and (result["novelty_score"] > threshold or len(history.entries) < n_shot):
-                    to_add.append(result)
-
-            # Tag entries with an id and add them to history
-            embeddings = []
-            for entry in to_add:
-                embedding = entry.pop("embedding")
-                history.add_entry(**entry)
-                embeddings.append(embedding)
-            novelty_scorer.add_embeddings(embeddings)
-
-            # Flush history to disk
-            history.save_history(history_path)
+    to_add = pd.DataFrame(to_add)
+    return to_add
 
 
-def generate_images(drawing_agent: Diffuser, history: History, n_shot: int):
-    """
-    Generate images 
-    """
+def main_loop(save_path: str, n_iters: int, n_shot: int, n_children: int):
+    coder = Coder("cat", model="gpt-5", temperature=1.0, max_workers=n_children)
+    evaluator = ImageNoveltyAgent("cat", model="gpt-5", temperature=1.0, max_workers=n_children)
+    history_df = pd.DataFrame(columns=["entry_id", "gen", "parents", "genotype", "phenotype", "novelty_score"])
 
-
-def run_diff_emb(iters: int, n_workers: int, n_shot: int, history_path: str):
-    drawing_agent = Diffuser(device="mps")
-    novelty_scorer = EmbeddingNoveltyEvaluator(k=30, device="mps")
-    history = setup_history()
-
-    for _ in tqdm(range(iters)):
-        with ThreadPoolExecutor(max_workers=n_workers) as ex:
-            # Set up jobs and hold results in to_add
-            submit = [single_iteration, "Cat", history, drawing_agent, novelty_scorer, n_shot]
-            futures = [ex.submit(*submit) for _ in range(n_workers)]
-            to_add = []
-            for fut in as_completed(futures):
-                result = fut.result()
-                if result is not None:
-                    to_add.append(result)
-
-            # Tag entries with an id and add them to history
-            embeddings = []
-            for entry in to_add:
-                embedding = entry.pop("embedding")
-                history.add_entry(**entry)
-                embeddings.append(embedding)
-            novelty_scorer.add_embeddings(embeddings)
-
-            # Flush history to disk
-            history.save_history(history_path)
+    for i in range(n_iters):
+        to_add = run_iteration(n_shot, n_children, 0.0, history_df, coder, evaluator)
+        history_df = pd.concat([history_df, to_add], ignore_index=True)
+        history_df.to_csv(save_path, index=False)
+        print(f"Completed iteration {i+1}/{n_iters}, total entries: {len(history_df)}")
 
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--save_path", type=str, required=True, help="Path to save history to")
-    parser.add_argument("--iters", type=int, default=10, help="Number of total iterations to run")
+    parser.add_argument("--save_path", type=str, required=True, help="Path to save results to")
+    parser.add_argument("--n_iters", type=int, default=10, help="Number of total iterations to run")
     parser.add_argument("--n_shot", type=int, default=5, help="Number of examples to prompt with")
     parser.add_argument("--n_workers", type=int, default=10, help="Number of parallel workers to use")
     args = parser.parse_args()
@@ -130,10 +84,4 @@ if __name__ == "__main__":
     random.seed(42)
     np.random.seed(42)
 
-    parallel_loop(
-        "Cat",
-        iters=args.iters,
-        n_shot=args.n_shot,
-        n_workers=args.n_workers,
-        history_path=args.save_path
-    )
+    main_loop(args.save_path, args.n_iters, args.n_shot, args.n_workers)
