@@ -2,9 +2,10 @@
 Pairwise evaluation of images.
 """
 import numpy as np
+import pandas as pd
 from PIL import Image
 
-from utils import History, decode_image
+from utils import decode_image
 
 
 def compare_images(base64_img0: str, base64_img1: str) -> int:
@@ -15,39 +16,46 @@ def compare_images(base64_img0: str, base64_img1: str) -> int:
     img0 = decode_image(base64_img0)
     img1 = decode_image(base64_img1)
 
-    Image.fromarray(np.hstack((np.array(img0),np.array(img1)))).show()
-    user_input = input("Which image is more creative? (0 or 1; 2 if not sure):")
-    while user_input not in ["0", "1", "2"]:
-        user_input = input("Invalid input. Please enter 0, 1, or 2:")
-    return int(user_input)
+    Image.fromarray(np.hstack((np.array(img0), np.array(img1)))).show()
+    user_input = input("Which image is more creative? (a or b; x if not sure):")
+    while user_input not in ["a", "b", "x"]:
+        user_input = input("Invalid input. Please enter a, b, or x:")
+    if user_input == "a":
+        return 1
+    elif user_input == "b":
+        return -1
+    else:
+        return 0
 
 
-def sample_comparisons(history: History, n: int) -> list[tuple[int, int]]:
+def sample_comparisons(num_entries: int, n: int) -> list[tuple[int, int]]:
     """
     Sample n pairs of images from history without replacement.
     """
-    indices = np.random.choice(len(history.entries), size=(n, 2), replace=False)
-    return [(i0, i1) for i0, i1 in indices]
+    all_indices = [(i, j) for i in range(num_entries) for j in range(i + 1, num_entries)]
+    np.random.shuffle(all_indices)
+    return all_indices[:n]
 
 
 def eval_pairwise(history_path: str, n: int):
     """
     Perform the pairwise evaluation. Save the results as a 2D matrix np array.
     """
-    history = History()
-    history.load_history(history_path)
+    history_df = pd.read_csv(history_path)
 
-    comparison_idxs = sample_comparisons(history, n=n)
+    if n == -1:
+        n = len(history_df)
+    comparison_idxs = sample_comparisons(len(history_df), n=n)
 
-    pairwise_results = np.full((len(history.entries), len(history.entries)), -1)
+    pairwise_results = np.full((len(history_df), len(history_df)), 0)
 
     for idx0, idx1 in comparison_idxs:
-        img0 = history.entries[idx0]["base64_img"]
-        img1 = history.entries[idx1]["base64_img"]
+        img0 = history_df.iloc[idx0]["phenotype"]
+        img1 = history_df.iloc[idx1]["phenotype"]
 
         winner = compare_images(img0, img1)
         pairwise_results[idx0, idx1] = winner
-        pairwise_results[idx1, idx0] = 1 - winner if winner in [0, 1] else 2
+        pairwise_results[idx1, idx0] = -1 * winner
 
     print("Pairwise results:")
     print(pairwise_results)
@@ -55,9 +63,10 @@ def eval_pairwise(history_path: str, n: int):
 
 
 def main():
-    history_path = "results/winrate.jsonl"
-    pairwise_results = eval_pairwise(history_path, 30)
-    np.save("results/winrate.npy", pairwise_results)
+    np.random.seed(42)
+    history_path = "results/refactored.csv"
+    pairwise_results = eval_pairwise(history_path, n=-1)
+    np.save("results/refactored.npy", pairwise_results)
 
 
 if __name__ == "__main__":

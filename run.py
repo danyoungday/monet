@@ -25,8 +25,11 @@ def run_iteration(
     Evaluates novelty based on the parents.
     Returns a DataFrame of the entries that passed.
     """
-    # Get some parent examples
-    all_examples = [history_df.sample(min(n_shot, len(history_df)), random_state=42) for _ in range(n_children)]
+    # Get some parent examples. Only sample ones that are above the novelty threshold
+    passed_examples = history_df[history_df["novelty_score"] > threshold]
+    all_examples = []
+    for _ in range(n_children):
+        all_examples.append(passed_examples.sample(min(n_shot, len(passed_examples)), random_state=42))
 
     # Generate new code with coder
     print("Writing code...")
@@ -38,33 +41,37 @@ def run_iteration(
 
     # Evaluate novelty of generated images
     print("Evaluating novelty...")
-    novelty_examples = [examples.to_dict(orient="records") for examples in all_examples]
-    novelties = evaluator.evaluate_parallel(base64_imgs, novelty_examples)
+    novelty_examples = [examples["phenotype"].tolist() for examples in all_examples]
+    eval_results = evaluator.evaluate_parallel(base64_imgs, novelty_examples)
+    # Eval results come as a list of tuples (score, rationale) -> convert to 2 parallel lists
+    novelties, rationales = zip(*eval_results)
 
     print("Logging results...")
-    # Add new entries to history
+    # Add all entries to history
     to_add = []
     for i in range(n_children):
-        if novelties[i] is not None and novelties[i] > threshold:
-            examples = all_examples[i]
-            new_entry = {
-                "entry_id": len(history_df) + i,
-                "gen": max(examples["gen"]) + 1 if len(examples) > 0 else 0,
-                "parents": sorted(list(examples["entry_id"])),
-                "genotype": new_codes[i],
-                "phenotype": base64_imgs[i],
-                "novelty_score": novelties[i]
-            }
-            to_add.append(new_entry)
+        examples = all_examples[i]
+        new_entry = {
+            "entry_id": len(history_df) + i,
+            "gen": max(examples["gen"]) + 1 if len(examples) > 0 else 0,
+            "parents": sorted(list(examples["entry_id"])),
+            "genotype": new_codes[i],
+            "phenotype": base64_imgs[i],
+            "novelty_score": novelties[i],
+            "rationale": rationales[i]
+        }
+        to_add.append(new_entry)
 
     to_add = pd.DataFrame(to_add)
     return to_add
 
 
 def main_loop(save_path: str, n_iters: int, n_shot: int, n_children: int):
-    coder = Coder("cat", model="gpt-5", temperature=1.0, max_workers=n_children)
-    evaluator = ImageNoveltyAgent("cat", model="gpt-5", temperature=1.0, max_workers=n_children)
-    history_df = pd.DataFrame(columns=["entry_id", "gen", "parents", "genotype", "phenotype", "novelty_score"])
+    coder = Coder("cat", model="gpt-5-mini", temperature=1.0, max_workers=n_children)
+    evaluator = ImageNoveltyAgent("cat", model="gpt-5-mini", temperature=1.0, max_workers=n_children)
+    history_df = pd.DataFrame(
+        columns=["entry_id", "gen", "parents", "genotype", "phenotype", "novelty_score", "rationale"]
+    )
 
     for i in range(n_iters):
         to_add = run_iteration(n_shot, n_children, 0.0, history_df, coder, evaluator)
@@ -85,3 +92,6 @@ if __name__ == "__main__":
     np.random.seed(42)
 
     main_loop(args.save_path, args.n_iters, args.n_shot, args.n_workers)
+
+    with open("log.txt", "a", encoding="utf-8") as f:
+        f.write(f"{args.save_path},{args.n_iters},{args.n_shot},{args.n_workers}\n")
