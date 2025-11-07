@@ -43,8 +43,13 @@ class Coder(Artist):
     def reproduce(self, examples: list[str]) -> str:
         """
         Few-shot prompts the agent to generate code based on the provided prompt and examples.
+        If no examples are provided, we prompt it to draw a cat. Otherwise, we don't give it any instruction.
         """
-        full_prompt = f"Draw a {self.subject}"
+        if len(examples) == 0:
+            full_prompt = f"Draw a {self.subject}"
+        else:
+            full_prompt = ""
+
         if len(examples) > 0:
             example_text = "\n\n".join(examples)
             full_prompt += f"\n\nThe following are some previously generated examples:\n\n{example_text}"

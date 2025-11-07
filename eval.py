@@ -64,9 +64,9 @@ def eval_pairwise(history_path: str, n: int):
 
 def main():
     np.random.seed(42)
-    history_path = "results/refactored.csv"
+    history_path = "results/full-save.csv"
     pairwise_results = eval_pairwise(history_path, n=-1)
-    np.save("results/refactored.npy", pairwise_results)
+    np.save("results/full-save.npy", pairwise_results)
 
 
 if __name__ == "__main__":

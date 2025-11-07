@@ -32,9 +32,7 @@ if __name__ == "__main__":
 
 Only use the PIL library and other native Python libraries, no external libraries.
 Do not modify any section of the template besides the draw_image function.
-Create any helper functions needed to draw the image. Make sure the helper functions are defined within the draw_image function.
 Be very verbose with your code comments to explain what each part of the code is doing.
 
-Produce the most novel image possible using your code.
-
+Produce the most novel and creative image possible using your code in relation to historical examples, or just in general if no examples are provided.
 Return your completed code including the template code above within a single code block.

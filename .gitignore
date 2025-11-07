@@ -15,3 +15,5 @@ log/
 results/
 
 figures/
+
+wandb/
