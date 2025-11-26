@@ -137,12 +137,13 @@ if __name__ == "__main__":
     parser.add_argument("--n_iters", type=int, default=10, help="Number of total iterations to run")
     parser.add_argument("--n_shot", type=int, default=5, help="Number of examples to prompt with")
     parser.add_argument("--n_workers", type=int, default=10, help="Number of parallel workers to use")
+    parser.add_argument("--threshold", type=float, default=20.0, help="Novelty threshold for selection")
     args = parser.parse_args()
 
     random.seed(42)
     np.random.seed(42)
 
-    main_loop(args.save_path, args.n_iters, args.n_shot, args.n_workers, threshold=2.0)
+    main_loop(args.save_path, args.n_iters, args.n_shot, args.n_workers, threshold=args.threshold)
 
     with open("log.txt", "a", encoding="utf-8") as f:
         f.write(f"{args.save_path},{args.n_iters},{args.n_shot},{args.n_workers}\n")

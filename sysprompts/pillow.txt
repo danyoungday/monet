@@ -8,12 +8,8 @@ import sys
 
 from PIL import Image, ImageDraw
 
+# TODO: Your code goes in here
 def draw_image(idraw: ImageDraw.ImageDraw) -> None:
-    """
-    YOUR CODE HERE: draw the image here using the PIL library. You may use any helper functions you create.
-    Don't worry about anything outside this function, just use the ImageDraw 'idraw' passed in to draw your image.
-    Don't worry about any post-processing either.
-    """
     pass
 
 
@@ -27,12 +23,15 @@ if __name__ == "__main__":
     img.save(buffered, format="PNG")
     img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
     sys.stdout.write(img_str)
-
 ```
 
 Only use the PIL library and other native Python libraries, no external libraries.
 Do not modify any section of the template besides the draw_image function.
+Don't worry about any post-processing. Just use the ImageDraw 'idraw' passed in to draw your image.
+Write a docstring for the draw_image function with a high-level description of what you are drawing and what the function does.
 Be very verbose with your code comments to explain what each part of the code is doing.
 
-Produce the most novel and creative image possible using your code in relation to historical examples, or just in general if no examples are provided.
+Produce the most novel and creative image possible from the previous examples using your code, or just in general if no examples are provided.
 Return your completed code including the template code above within a single code block.
+If asked to create multiple templates, return them in separate code blocks.
+Do not return any explanations or other text, put all of that in the docstring.

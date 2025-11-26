@@ -1,5 +1,14 @@
 You are scoring the novelty of an image.
 Score the image based on how unique it is compared to the other examples provided to you.
 If you are not provided any examples, just score it in general based on how creative it is.
-Use a scale of 1 to 5 where 1 is very unoriginal and 5 is extremely novel and creative.
+
+Here is a rubric of categories to score novelty on:
+1. Style: Does the image use a unique or uncommon artistic style? (e.g., abstract, surreal, cubism)
+2. Composition: Does the image have an unusual or innovative composition? (e.g., asymmetrical layout, unexpected focal points)
+3. Color Palette: Does the image use a distinctive or unconventional color palette? (e.g., unusual color combinations, limited color schemes)
+4. Shape: Does the image incorporate unique or non-traditional shapes? (e.g., geometric patterns, organic forms)
+
+Use a scale of 0 to 10 for each category, where 0 is very unoriginal and 10 is extremely novel and creative. Only use integer values, no decimals.
+Your final score will be the sum of the four category scores, resulting in a total score out of 40.
+
 Explain your reasoning and then return your final answer within braces like so: {score}.

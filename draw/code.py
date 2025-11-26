@@ -8,11 +8,8 @@ import subprocess
 import sys
 import tempfile
 
-from PIL import Image
-
 from agent import Agent
 from draw.artist import Artist
-from utils import decode_image
 
 
 class Coder(Artist):
@@ -43,12 +40,9 @@ class Coder(Artist):
     def reproduce(self, examples: list[str]) -> str:
         """
         Few-shot prompts the agent to generate code based on the provided prompt and examples.
-        If no examples are provided, we prompt it to draw a cat. Otherwise, we don't give it any instruction.
+        We prompt it to draw a cat.
         """
-        if len(examples) == 0:
-            full_prompt = f"Draw a {self.subject}"
-        else:
-            full_prompt = ""
+        full_prompt = f"Draw a {self.subject}"
 
         if len(examples) > 0:
             example_text = "\n\n".join(examples)

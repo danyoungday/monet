@@ -1,0 +1,92 @@
+import base64
+from io import BytesIO
+import sys
+
+from PIL import Image, ImageDraw
+
+# TODO: Your code goes in here
+def draw_image(idraw: ImageDraw.ImageDraw) -> None:
+    """
+    Crafts a mosaic cat assembled from many small triangles, like stained glass.
+    The triangles are colored with a sunlit palette, and a subtle rim defines the
+    silhouette. The cat is portrayed sitting with an upright tail.
+    """
+    W, H = 512, 512
+
+    # Background: cool slate
+    idraw.rectangle([(0, 0), (W, H)], fill=(30, 40, 55))
+
+    # Silhouette guide: body and head areas (not clipping, but a guide to place facets)
+    body = (120, 240, 320, 440)
+    head = (280, 170, 360, 250)
+    tail = [(130, 310), (110, 290), (95, 270), (92, 250), (105, 235), (125, 240), (140, 260), (150, 290), (150, 320)]
+
+    # Triangular facet palette
+    palette = [
+        (255, 195, 110), (255, 175, 90), (255, 155, 85), (235, 135, 90),
+        (205, 120, 100), (255, 215, 130), (255, 235, 150), (230, 200, 120),
+        (200, 170, 110),
+    ]
+
+    # Helper to test point inside ellipse and polygon
+    def in_ellipse(x, y, box):
+        x0, y0, x1, y1 = box
+        rx = (x1 - x0) / 2
+        ry = (y1 - y0) / 2
+        cx = x0 + rx
+        cy = y0 + ry
+        return ((x - cx) ** 2) / (rx ** 2) + ((y - cy) ** 2) / (ry ** 2) <= 1.0
+
+    def point_in_poly(x, y, poly):
+        inside = False
+        for i in range(len(poly)):
+            x1, y1 = poly[i]
+            x2, y2 = poly[(i + 1) % len(poly)]
+            if ((y1 > y) != (y2 > y)) and (x < (x2 - x1) * (y - y1) / (y2 - y1 + 1e-9) + x1):
+                inside = not inside
+        return inside
+
+    import random
+    random.seed(7)
+
+    # Tile the region with small triangles
+    step = 22
+    for y in range(220, 450, step):
+        for x in range(100, 360, step):
+            cx, cy = x + step // 2, y + step // 2
+            if in_ellipse(cx, cy, body) or in_ellipse(cx, cy, head) or point_in_poly(cx, cy, tail):
+                # Randomized triangle orientation
+                if (x // step + y // step) % 2 == 0:
+                    tri = [(x, y), (x + step, y), (x + step // 2, y + step)]
+                else:
+                    tri = [(x, y + step), (x + step, y + step), (x + step // 2, y)]
+                col = random.choice(palette)
+                idraw.polygon(tri, fill=col, outline=(40, 30, 20))
+
+    # Silhouette outline
+    idraw.ellipse(body, outline=(255, 240, 210), width=3)
+    idraw.ellipse(head, outline=(255, 240, 210), width=3)
+    idraw.polygon(tail, outline=(255, 240, 210), width=3)
+
+    # Ears
+    idraw.polygon([(300, 190), (310, 150), (320, 190)], fill=None, outline=(255, 240, 210))
+    idraw.polygon([(335, 200), (350, 160), (360, 200)], fill=None, outline=(255, 240, 210))
+
+    # Eye glints
+    idraw.ellipse((310, 205, 316, 211), fill=(255, 255, 255))
+    idraw.ellipse((340, 210, 346, 216), fill=(255, 255, 255))
+
+    # Nose
+    idraw.polygon([(325, 225), (332, 225), (328, 230)], fill=(200, 110, 100))
+
+
+if __name__ == "__main__":
+    img = Image.new("RGBA", (512, 512))
+    idraw = ImageDraw.Draw(img)
+
+    draw_image(idraw)
+
+    buffered = BytesIO()
+    img.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+    sys.stdout.write(img_str)
