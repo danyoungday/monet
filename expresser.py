@@ -49,6 +49,7 @@ class Expresser:
                     env=env,
                     timeout=10,
                 )
+
                 output_str = process.stdout
                 output_str = output_str.strip()
 
@@ -57,6 +58,8 @@ class Expresser:
                 return output_img
 
             except subprocess.CalledProcessError:
+                return None
+            except subprocess.TimeoutExpired:
                 return None
 
 

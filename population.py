@@ -1,3 +1,6 @@
+import base64
+from io import BytesIO
+
 import faiss
 # pylint: disable=E1120
 # faiss has messed up typing so we disable this error in pylint
@@ -9,45 +12,56 @@ class Individual:
     """
     Data class storing genotype, phenotype, and embedding.
     """
-    def __init__(self, cand_id: int, genotype: str):
+    def __init__(self, cand_id: int, parents: list[int], genotype: str):
         self.cand_id = cand_id
+        self.parents = parents
         self.genotype = genotype
         self.phenotype: Image.Image = None
         self.embedding: np.ndarray = None
-        self.novelty_score = 0.0
+        self.novelty_score = 1.0
+
+    def encode_phenotype(self):
+        """
+        Encodes the phenotype image into a base64 string for easy storage.
+        """
+        if self.phenotype is None:
+            return None
+        buffered = BytesIO()
+        self.phenotype.save(buffered, format="PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        return img_str
 
 
 class Index:
     def __init__(self, k):
         self.k = k
         d = 512
-        self.index = faiss.IndexFlatL2(d)
+        self.index = faiss.IndexFlatIP(d)
         self.individuals: list[Individual] = []
 
     def add_embedding(self, candidate: Individual):
         """
         Adds the embedding from an individual into the index.
+        Normalize the embedding to unit length before adding so that inner product = cosine similarity.
         """
         embedding = candidate.embedding.reshape(1, -1).astype("float32")
+        embedding = embedding / np.linalg.norm(embedding, axis=1, keepdims=True)
         self.index.add(embedding)
         self.individuals.append(candidate)
 
     def measure_novelty(self, embeddings: np.ndarray) -> np.ndarray:
         """
-        Measure novelty of the given embeddings against the history.
-        This is a little more complicated than it seems because we don't want to measure novelty against ourselves.
-        Do k+1 nearest neighbors and ignore the first one if the index contains the same embedding.
+        Measure novelty of the given embeddings against the history. The candidate gets added to the index first so
+        in essence k is actually k-1.
         Embeddings: (n, d) numpy array
         """
         if self.index.ntotal == 0:
-            return np.array([0.0] * embeddings.shape[0])
+            return np.array([1.0] * embeddings.shape[0])
 
-        k = min(self.k+1, self.index.ntotal)
-        D, I = self.index.search(embeddings, k=min(self.k + 1, self.index.ntotal))
+        embeddings = embeddings.astype("float32")
+        embeddings = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
 
-        # Zero out the k+1th distance if the first neighbor is not identical
-        identical = (D[:, 0] == 0.0)
-        D[~identical, k-1] = 0.0
+        D, _ = self.index.search(embeddings, k=min(self.k, self.index.ntotal))
 
         novelty_scores = D.mean(axis=1)
         return novelty_scores
