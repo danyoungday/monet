@@ -1,4 +1,5 @@
 import numpy as np
+from PIL import Image
 
 from embedder import Embedder
 from expresser import Expresser
@@ -13,6 +14,23 @@ class Evaluator:
         self.expresser = expresser
         self.embedder = embedder
         self.index = index
+
+    def is_low_variance(self, img: Image.Image, std_thresh=1.0, range_thresh=6, ignore_alpha=True) -> bool:
+        """
+        Check if the image is just low variance noise.
+        std_thresh: average per-channel std-dev threshold.
+        range_thresh: maximum (max-min) per channel threshold.
+        """
+        im = img.convert("RGBA")
+        arr = np.asarray(im, dtype=np.float32)
+
+        if ignore_alpha:
+            arr = arr[..., :3]  # RGB only
+
+        per_chan_std = arr.reshape(-1, arr.shape[-1]).std(axis=0)
+        per_chan_range = arr.reshape(-1, arr.shape[-1]).ptp(axis=0)  # max-min
+
+        return (per_chan_std.mean() <= std_thresh) and (per_chan_range.max() <= range_thresh)
 
     def evaluate(self, candidate: Individual) -> float:
         """
@@ -75,7 +93,8 @@ class Evaluator:
         embedding_idxs = []
         embeddings = []
         for i, candidate in enumerate(candidates):
-            if candidate.embedding is not None:
+            # Check that we have an embedding and the image isn't noise
+            if candidate.embedding is not None and not self.is_low_variance(candidate.phenotype):
                 embedding_idxs.append(i)
                 embeddings.append(candidate.embedding.reshape(-1))
 
@@ -83,8 +102,9 @@ class Evaluator:
         for idx, embedding in zip(embedding_idxs, embeddings):
             candidate = candidates[idx]
 
-            if candidate not in self.index.individuals:
-                self.index.add_embedding(candidate)
+            # NOTE: Don't actually add to the index so we have a stable comparison point
+            # if candidate not in self.index.individuals:
+            #     self.index.add_embedding(candidate)
 
             novelty_score = self.index.measure_novelty(embedding.reshape(1, -1))[0]
 

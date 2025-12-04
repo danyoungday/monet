@@ -71,11 +71,13 @@ def log_population(log_df: pd.DataFrame, population: list[Individual]) -> pd.Dat
 
 def evolution():
 
+    save_path = "results/variance.csv"
+
     log_df = pd.DataFrame(columns=["gen", "genotype", "novelty_score"])
 
     expresser = Expresser()
     embedder = Embedder(device="mps", batch_size=16)
-    index = Index(k=4)
+    index = Index(k=3)
     evaluator = Evaluator(expresser, embedder, index)
 
     reproducer = Reproducer()
@@ -84,7 +86,7 @@ def evolution():
     print("Creating initial population...")
     population = reproducer.create_initial_population(n=POP_SIZE)
     log_df = log_population(log_df, population)
-    log_df.to_csv("evolution_log.csv", index=False)
+    log_df.to_csv(save_path, index=False)
 
     # Add initial population to index
     evaluator.prepare_candidates(population)
@@ -95,7 +97,7 @@ def evolution():
     for gen in range(1, 10):
         print(f"Generation {gen}...")
         population, log_df = loop(population, evaluator, reproducer, log_df)
-        log_df.to_csv("evolution_log.csv", index=False)
+        log_df.to_csv(save_path, index=False)
 
 
 if __name__ == "__main__":
