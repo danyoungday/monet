@@ -1,8 +1,10 @@
+"""
+The main evolution functionality.
+"""
+import ast
 import random
 
-import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
 from embedder import Embedder
 from evaluator import Evaluator
@@ -69,10 +71,32 @@ def log_population(log_df: pd.DataFrame, population: list[Individual]) -> pd.Dat
     return pd.concat([log_df, pd.DataFrame(rows)], ignore_index=True)
 
 
-def evolution():
+def load_from_log(log_df: pd.DataFrame, evaluator: Evaluator) -> list[Individual]:
+    """
+    Loads a population and sets up index in evaluator from log file.
+    """
+    individuals = []
+    for _, row in log_df.iterrows():
+        individual = Individual(
+            cand_id=row["cand_id"],
+            parents=ast.literal_eval(row["parents"]),
+            genotype=row["genotype"]
+        )
+        individuals.append(individual)
 
-    save_path = "results/variance.csv"
+    evaluator.prepare_candidates(individuals)
 
+    for individual in individuals:
+        if individual.embedding is not None:
+            evaluator.index.add_embedding(individual)
+
+    return individuals
+
+
+def evolution(save_path: str):
+    """
+    Overall evolution loop.
+    """
     log_df = pd.DataFrame(columns=["gen", "genotype", "novelty_score"])
 
     expresser = Expresser()
@@ -101,4 +125,4 @@ def evolution():
 
 
 if __name__ == "__main__":
-    evolution()
+    evolution("results/variance.csv")

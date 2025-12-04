@@ -6,6 +6,9 @@ from torch.utils.data import Dataset, DataLoader
 
 
 class ImageDS(Dataset):
+    """
+    Dataset for batching images.
+    """
     def __init__(self, imgs: list[Image.Image], preprocess):
         self.imgs = imgs
         self.preprocess = preprocess
@@ -19,6 +22,9 @@ class ImageDS(Dataset):
 
 
 class Embedder:
+    """
+    Class that encodes images into embeddings using OpenCLIP.
+    """
     def __init__(self, device, batch_size):
         self.device = device
         self.batch_size = batch_size
@@ -30,6 +36,9 @@ class Embedder:
         self.model.eval()
 
     def encode_images(self, imgs: list[Image.Image]) -> np.ndarray:
+        """
+        Encodes a list of PIL Images into embeddings, returns as a numpy array.
+        """
         dataset = ImageDS(imgs, self.preprocess)
         loader = DataLoader(dataset, batch_size=self.batch_size)
 
