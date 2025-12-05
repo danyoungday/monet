@@ -1,5 +1,8 @@
+import ast
 from concurrent.futures import ThreadPoolExecutor
 import re
+
+import pandas as pd
 
 from agent import Agent
 from population import Individual
@@ -66,6 +69,24 @@ class Reproducer:
             genotype = code_blocks[i]
             individual = Individual(self.current_id, [-1], genotype)
             self.current_id += 1
+            individuals.append(individual)
+
+        return individuals
+
+    def load_from_log(self, log_df: pd.DataFrame) -> list[Individual]:
+        """
+        Loads a population from a log dataframe.
+        """
+        individuals = []
+        for _, row in log_df.iterrows():
+            individual = Individual(
+                cand_id=row["cand_id"],
+                parents=ast.literal_eval(row["parents"]),
+                genotype=row["genotype"]
+            )
+            individual.novelty_score = 1.0
+            if "is_subject" in row:
+                individual.is_subject = row["is_subject"]
             individuals.append(individual)
 
         return individuals

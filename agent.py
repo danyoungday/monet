@@ -8,12 +8,21 @@ class Agent():
     """
     A simple OpenAI agent.
     """
-    def __init__(self, system_prompt: str, model: str, temperature: float):
+    def __init__(self, system_prompt: str, model: str, temperature: float, log_path: str = None):
         self.system_prompt = system_prompt
         self.model = model
         self.temperature = temperature
 
         self.history = []
+
+        self.token_usage = {}
+
+        self.log_path = log_path
+        if self.log_path:
+            with open(self.log_path, "a", encoding="utf-8") as f:
+                f.write("----- New Agent Session -----\n")
+                f.write(f"Agent initialized with model {model} and temperature {temperature}\n")
+                f.write(f"System Prompt:\n{system_prompt}\n\n")
 
     def set_history(self, history: list[dict]):
         """
@@ -50,6 +59,19 @@ class Agent():
 
             if save_history:
                 self.history.append({"role": "user", "content": content})
+
+            # Log token usage
+            self.token_usage["input_tokens"] = self.token_usage.get("input_tokens", []) + [response.usage.prompt_tokens]
+            self.token_usage["output_tokens"] = self.token_usage.get("output_tokens", []) + [response.usage.completion_tokens]
+
+            # Log to file if needed
+            if self.log_path:
+                with open(self.log_path, "a", encoding="utf-8") as f:
+                    f.write("----- New Interaction -----\n")
+                    f.write("User Content:\n")
+                    f.write(f"{content}\n\n")
+                    f.write("Agent Reply:\n")
+                    f.write(f"{reply}\n\n")
 
             return reply
 

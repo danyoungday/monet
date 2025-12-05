@@ -1,8 +1,2 @@
-You are classifying what an image is based on multiple choice options.
-Your options are:
-A: dog
-B: cat
-C: rabbit
-D: mouse
-E: none of the above
-Give your reasoning then respond with the single letter of the correct answer in braces like so: {LETTER}.
+Could the following art be interpreted as a <SUBJECT>?
+Return your rationale and then answer in curly braces either {Yes} or {No}.

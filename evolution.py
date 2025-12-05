@@ -2,62 +2,108 @@
 The main evolution functionality.
 """
 import ast
+import json
+from pathlib import Path
 import random
 
 import pandas as pd
 
-from embedder import Embedder
 from evaluator import Evaluator
-from expresser import Expresser
-from population import Individual, Index
+from population import Individual
 from reproducer import Reproducer
 
-POP_SIZE = 10
-N_PARENTS = 2
+
+class Evolution:
+    """
+    Class in charge of running evolution
+    """
+    def __init__(self, save_path: Path, pop_size: int, n_parents: int, seed_path: Path = None):
+        self.save_path = save_path
+        self.save_path.mkdir(parents=False, exist_ok=False)
+        self.seed_path = seed_path
+        self.log_df = pd.DataFrame(columns=["gen", "genotype", "novelty_score", "is_subject"])
+
+        self.pop_size = pop_size
+        self.n_parents = n_parents
+
+        self.evaluator = Evaluator()
+
+        self.reproducer = Reproducer()
+
+    def loop(self, population: list[Individual]) -> list[Individual]:
+        """
+        Single evolutionary loop iteration.
+        Takes in a population, randomly selects 5 examples to show the reproducer to create 10 new children.
+        Evaluates the entire population since we updated the index since last time.
+        Selects the top 10 most novel individuals from the combined population + children to be the next population.
+        Then adds the new individuals to the index.
+        Returns the new population.
+        """
+        # Select parents and reproduce
+        print("Reproducing...")
+        all_parents = [random.sample(population, k=self.n_parents) for _ in range(self.pop_size)]
+        children = self.reproducer.reproduce_parallel(all_parents)
+
+        # Evaluate novelty of population + children
+        to_eval = population + children
+        print("Evaluating novelty...")
+        self.evaluator.evaluate_parallel(to_eval)
+
+        # Sort by novelty and select top individuals
+        evaluated_sorted = sorted(to_eval, key=lambda c: c.novelty_score, reverse=False)
+
+        # Log the created population
+        self.log_df = log_population(self.log_df, evaluated_sorted, self.reproducer, self.evaluator, self.save_path)
+
+        for individual in evaluated_sorted:
+            print(f"\t{individual.cand_id}: {individual.novelty_score}")
+
+        new_population = evaluated_sorted[:len(population)]
+        print("New population and scores:", [(ind.cand_id, ind.novelty_score) for ind in new_population])
+
+        return new_population
+
+    def evolution(self):
+        """
+        Overall evolution loop.
+        """
+        # Initialize population, load from seed if given
+        population: list[Individual] = None
+        if self.seed_path:
+            print("Loading population from log...")
+            seed_df = pd.read_csv(self.seed_path)
+            seed_df = seed_df[seed_df["gen"] == 0].sort_values("cand_id")
+            population = self.reproducer.load_from_log(seed_df)
+            # Have to set current_id so we don't have duplicate ids
+            self.reproducer.current_id = max(ind.cand_id for ind in population) + 1
+        else:
+            print("Creating initial population...")
+            population = self.reproducer.create_initial_population(n=self.pop_size)
+        self.log_df = log_population(self.log_df, population, self.reproducer, self.evaluator, self.save_path)
+
+        # Add initial population to index
+        self.evaluator.prepare_candidates(population)
+        for individual in population:
+            if individual.embedding is not None:
+                self.evaluator.index.add_embedding(individual)
+        print(f"Added {self.evaluator.index.index.ntotal} individuals to index.")
+
+        # Run evolution
+        for gen in range(1, 10):
+            print(f"Generation {gen}...")
+            population = self.loop(population)
 
 
-def loop(
+def log_population(
+        log_df: pd.DataFrame,
         population: list[Individual],
-        evaluator: Evaluator,
         reproducer: Reproducer,
-        log_df: pd.DataFrame) -> list[Individual]:
-    """
-    Single evolutionary loop iteration.
-    Takes in a population, randomly selects 5 examples to show the reproducer to create 10 new children.
-    Evaluates the entire population since we updated the index since last time.
-    Selects the top 10 most novel individuals from the combined population + children to be the next population.
-    Then adds the new individuals to the index.
-    Returns the new population.
-    """
-    # Select parents and reproduce
-    print("Reproducing...")
-    all_parents = [random.sample(population, k=N_PARENTS) for _ in range(10)]
-    children = reproducer.reproduce_parallel(all_parents)
-
-    # Evaluate novelty of population + children
-    to_eval = population + children
-    print("Evaluating novelty...")
-    evaluator.evaluate_parallel(to_eval)
-
-    # Sort by novelty and select top individuals
-    evaluated_sorted = sorted(to_eval, key=lambda c: c.novelty_score, reverse=False)
-
-    # Log the created population
-    log_df = log_population(log_df, to_eval)
-
-    for individual in evaluated_sorted:
-        print(f"\t{individual.cand_id}: {individual.novelty_score}")
-
-    new_population = evaluated_sorted[:len(population)]
-    print("New population and scores:", [(ind.cand_id, ind.novelty_score) for ind in new_population])
-
-    return new_population, log_df
-
-
-def log_population(log_df: pd.DataFrame, population: list[Individual]) -> pd.DataFrame:
+        evaluator: Evaluator,
+        save_path: Path = None) -> pd.DataFrame:
     """
     Appends the given population to the log dataframe with a new generation number.
     """
+    # Update the log dataframe
     gen = log_df["gen"].max() + 1 if not log_df.empty else 0
     rows = []
     for individual in population:
@@ -66,63 +112,31 @@ def log_population(log_df: pd.DataFrame, population: list[Individual]) -> pd.Dat
             "cand_id": individual.cand_id,
             "parents": individual.parents,
             "genotype": individual.genotype,
-            "novelty_score": individual.novelty_score
+            "novelty_score": individual.novelty_score,
+            "is_subject": individual.is_subject
         })
-    return pd.concat([log_df, pd.DataFrame(rows)], ignore_index=True)
+    new_log_df = pd.concat([log_df, pd.DataFrame(rows)], ignore_index=True) if not log_df.empty else pd.DataFrame(rows)
 
+    # Save the results to disk
+    if save_path:
+        # Save log_df to results.csv
+        new_log_df.to_csv(save_path / "results.csv", index=False)
 
-def load_from_log(log_df: pd.DataFrame, evaluator: Evaluator) -> list[Individual]:
-    """
-    Loads a population and sets up index in evaluator from log file.
-    """
-    individuals = []
-    for _, row in log_df.iterrows():
-        individual = Individual(
-            cand_id=row["cand_id"],
-            parents=ast.literal_eval(row["parents"]),
-            genotype=row["genotype"]
-        )
-        individuals.append(individual)
+        # Save agent and discriminator token information to tokens.json
+        with open(save_path / "tokens.json", "w", encoding="utf-8") as f:
+            json.dump({
+                "reproducer_tokens": reproducer.agent.token_usage,
+                "discriminator_tokens": evaluator.discriminator.agent.token_usage
+            }, f, indent=4)
 
-    evaluator.prepare_candidates(individuals)
-
-    for individual in individuals:
-        if individual.embedding is not None:
-            evaluator.index.add_embedding(individual)
-
-    return individuals
-
-
-def evolution(save_path: str):
-    """
-    Overall evolution loop.
-    """
-    log_df = pd.DataFrame(columns=["gen", "genotype", "novelty_score"])
-
-    expresser = Expresser()
-    embedder = Embedder(device="mps", batch_size=16)
-    index = Index(k=3)
-    evaluator = Evaluator(expresser, embedder, index)
-
-    reproducer = Reproducer()
-
-    # Initialize population
-    print("Creating initial population...")
-    population = reproducer.create_initial_population(n=POP_SIZE)
-    log_df = log_population(log_df, population)
-    log_df.to_csv(save_path, index=False)
-
-    # Add initial population to index
-    evaluator.prepare_candidates(population)
-    for individual in population:
-        if individual.embedding is not None:
-            index.add_embedding(individual)
-
-    for gen in range(1, 10):
-        print(f"Generation {gen}...")
-        population, log_df = loop(population, evaluator, reproducer, log_df)
-        log_df.to_csv(save_path, index=False)
+    return new_log_df
 
 
 if __name__ == "__main__":
-    evolution("results/variance.csv")
+    evolution = Evolution(
+        save_path=Path("results/discriminator2"),
+        seed_path=Path("results/seed.csv"),
+        pop_size=10,
+        n_parents=2
+    )
+    evolution.evolution()

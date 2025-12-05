@@ -1,6 +1,0 @@
-results/refactored.csv,1,2,3
-results/refactored.csv,1,2,10
-results/refactored.csv,10,5,10
-results/full-save.csv,10,10,10
-results/random-parents.csv,10,10,10
-results/rubric.csv,10,5,10

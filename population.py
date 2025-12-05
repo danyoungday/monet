@@ -19,6 +19,7 @@ class Individual:
         self.phenotype: Image.Image = None
         self.embedding: np.ndarray = None
         self.novelty_score = 1.0
+        self.is_subject = False
 
     def encode_phenotype(self):
         """
@@ -61,7 +62,12 @@ class Index:
         embeddings = embeddings.astype("float32")
         embeddings = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
 
-        D, _ = self.index.search(embeddings, k=min(self.k, self.index.ntotal))
+        if self.k == -1:
+            k = self.index.ntotal
+        else:
+            k = min(self.k, self.index.ntotal)
+
+        D, _ = self.index.search(embeddings, k=k)
 
         novelty_scores = D.mean(axis=1)
         return novelty_scores
@@ -71,19 +77,27 @@ def test_index():
     """
     Check if the index of 2 of the same image gives 0 distance.
     """
-    index = Index(k=3)
+    index = Index(k=10)
     embedding = np.random.rand(1, 512).astype("float32")
 
-    cand1 = Individual(0, "genotype1")
+    cand1 = Individual(0, [-1], "genotype1")
     cand1.embedding = embedding
 
-    cand2 = Individual(1, "genotype2")
+    cand2 = Individual(1, [-1], "genotype2")
     cand2.embedding = embedding
 
     index.add_embedding(cand1)
     novelty_scores = index.measure_novelty(cand2.embedding)
     print(f"Novelty scores: {novelty_scores}")
 
+    for i in range(100):
+        emb = np.random.rand(1, 512).astype("float32")
+        cand = Individual(i + 2, [-1], f"genotype{i + 2}")
+        cand.embedding = emb
+        index.add_embedding(cand)
+
+    novelty_scores = index.measure_novelty(cand2.embedding)
+    print(f"Novelty scores after adding more individuals: {novelty_scores}")
 
 if __name__ == "__main__":
     test_index()

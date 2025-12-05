@@ -1,6 +1,7 @@
 import numpy as np
 from PIL import Image
 
+from discriminator import Discriminator
 from embedder import Embedder
 from expresser import Expresser
 from population import Individual, Index
@@ -10,10 +11,11 @@ class Evaluator:
     """
     Evaluates the novelty of candidates.
     """
-    def __init__(self, expresser: Expresser, embedder: Embedder, index: Index):
-        self.expresser = expresser
-        self.embedder = embedder
-        self.index = index
+    def __init__(self):
+        self.expresser = Expresser()
+        self.embedder = Embedder(device="mps", batch_size=16)
+        self.index = Index(k=-1)
+        self.discriminator = Discriminator()
 
     def is_low_variance(self, img: Image.Image, std_thresh=1.0, range_thresh=6, ignore_alpha=True) -> bool:
         """
@@ -86,26 +88,20 @@ class Evaluator:
         """
         Evaluates the novelty of multiple candidates in parallel.
         Sets the candidate's phenotype and embedding as needed.
+        Discriminates if the candidate is of the target subject.
         Sets the candidate's novelty_score attribute.
         """
+        # Prepare candidates (express + embed)
         self.prepare_candidates(candidates)
 
-        embedding_idxs = []
-        embeddings = []
-        for i, candidate in enumerate(candidates):
-            # Check that we have an embedding and the image isn't noise
-            if candidate.embedding is not None and not self.is_low_variance(candidate.phenotype):
-                embedding_idxs.append(i)
-                embeddings.append(candidate.embedding.reshape(-1))
+        # Discriminate images
+        disc_results = self.discriminator.classify_image_parallel([c.phenotype for c in candidates])
+        for candidate, (is_subject, _) in zip(candidates, disc_results):
+            candidate.is_subject = is_subject
 
-        # Add to index if not present, measure novelty score, set on candidate
-        for idx, embedding in zip(embedding_idxs, embeddings):
-            candidate = candidates[idx]
+        # Evaluate novelty scores
+        for candidate in candidates:
+            if candidate.is_subject and candidate.embedding is not None:
+                novelty_score = self.index.measure_novelty(candidate.embedding.reshape(1, -1))[0]
+                candidate.novelty_score = novelty_score
 
-            # NOTE: Don't actually add to the index so we have a stable comparison point
-            # if candidate not in self.index.individuals:
-            #     self.index.add_embedding(candidate)
-
-            novelty_score = self.index.measure_novelty(embedding.reshape(1, -1))[0]
-
-            candidate.novelty_score = novelty_score
